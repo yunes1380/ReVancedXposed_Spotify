@@ -20,11 +20,20 @@ val attributesMapField =
     findFieldDirect { productStateProtoFingerprint().usingFields.single().field }
 
 val buildQueryParametersFingerprint = findMethodDirect {
-    findMethod {
-        matcher {
-            strings("trackRows", "device_type:tablet")
-        }
-    }.single()
+    runCatching {
+        findMethod {
+            matcher {
+                strings("trackRows", "device_type:tablet")
+            }
+        }.single()
+    }.getOrElse {
+        // 9.1.84+: strings may have moved; fall back to trackRows alone
+        findMethod {
+            matcher {
+                strings("trackRows")
+            }
+        }.single()
+    }
 }
 val contextFromJsonFingerprint = fingerprint {
     opcodes(
@@ -78,8 +87,15 @@ fun structureGetSectionsFingerprint(className: String) = fingerprint {
     }
 }
 
-val homeStructureGetSectionsFingerprint =
-    structureGetSectionsFingerprint("homeapi.proto.HomeStructure")
+// 9.1.84 moved Home from homeapi.proto to casita.v1.resolved.
+// Try casita first, fall back to the legacy homeapi path.
+val homeStructureGetSectionsFingerprint = findMethodDirect {
+    runCatching {
+        structureGetSectionsFingerprint("casita.v1.resolved.HomeStructure")(this)
+    }.getOrElse {
+        structureGetSectionsFingerprint("homeapi.proto.HomeStructure")(this)
+    }
+}
 val browseStructureGetSectionsFingerprint =
     structureGetSectionsFingerprint("browsita.v1.resolved.BrowseStructure")
 

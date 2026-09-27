@@ -13,11 +13,23 @@ val shareCopyUrlFingerprint = findMethodDirect {
             methodMatcher { name = "invokeSuspend" }
         }
     }.getOrElse {
-        fingerprint {
-            returns("Ljava/lang/Object;")
-            parameters("Ljava/lang/Object;")
-            strings("clipboard", "createNewSession failed")
-            methodMatcher { name = "apply" }
+        runCatching {
+            fingerprint {
+                returns("Ljava/lang/Object;")
+                parameters("Ljava/lang/Object;")
+                strings("clipboard", "createNewSession failed")
+                methodMatcher { name = "apply" }
+            }
+        }.getOrElse {
+            // 9.1.84+: method renamed again; match any clipboard copier
+            // returning Object and taking a single Object param.
+            findMethod {
+                matcher {
+                    returnType("java.lang.Object")
+                    paramTypes("java.lang.Object")
+                    addUsingString("clipboard")
+                }
+            }.single()
         }
     }
 }
@@ -37,17 +49,16 @@ val formatAndroidShareSheetUrlFingerprint = findMethodDirect {
             !it.usingStrings.contains("")
         }
     }.getOrElse {
+        // 9.1.84+: ShareData signature changed; match the '\n' joiner loosely.
         findMethod {
             matcher {
                 returnType("java.lang.String")
                 addUsingNumber('\n'.code)
-                modifiers = Modifier.PUBLIC
-                paramTypes("com.spotify.share.social.sharedata.ShareData", "java.lang.String")
             }
         }.single {
-            // exclude
-            // `(PlayerState, String) -> String` usingNumbers(1, 10); usingStrings("")
-            !it.usingStrings.contains("")
+            !it.usingStrings.contains("") &&
+                    it.paramTypes.size == 2 &&
+                    it.paramTypes[1] == "java.lang.String"
         }
     }
 

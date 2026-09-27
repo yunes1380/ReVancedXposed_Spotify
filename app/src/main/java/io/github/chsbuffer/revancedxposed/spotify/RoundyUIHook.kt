@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.ImageView
 import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
@@ -93,48 +94,55 @@ class RoundyUIHook(private val lpparam: XC_LoadPackage.LoadPackageParam) {
         )
 
         // 4. Hook per i BottomSheets (Il contenitore che scivola dal basso)
-        XposedHelpers.findAndHookMethod(
-            "com.google.android.material.bottomsheet.BottomSheetBehavior",
-            classLoader,
-            "onLayoutChild",
-            "androidx.coordinatorlayout.widget.CoordinatorLayout",
-            View::class.java,
-            Int::class.javaPrimitiveType,
-            object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    val view = param.args[1] as View
+        // 9.1.84: Material 1.12+ changed onLayoutChild signature
+        // (now returns boolean / different params) -> hook version-tolerant.
+        runCatching {
+            val bottomSheetBehavior = XposedHelpers.findClass(
+                "com.google.android.material.bottomsheet.BottomSheetBehavior",
+                classLoader
+            )
+            XposedBridge.hookAllMethods(
+                bottomSheetBehavior,
+                "onLayoutChild",
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val view = param.args.firstOrNull { it is View } as? View ?: return
 
-                    // Applichiamo lo stondamento solo agli angoli SUPERIORI (Top Left e Top Right)
-                    // Tipico dei BottomSheet Material 3
-                    view.clipToOutline = true
-                    view.outlineProvider = object : ViewOutlineProvider() {
-                        override fun getOutline(view: View, outline: Outline) {
-                            // Creiamo un rettangolo che esce dal basso per non stondare gli angoli inferiori
-                            outline.setRoundRect(
-                                0, 0,
-                                view.width, view.height + radiusLarge.toInt(),
-                                radiusLarge
-                            )
+                        // Applichiamo lo stondamento solo agli angoli SUPERIORI (Top Left e Top Right)
+                        // Tipico dei BottomSheet Material 3
+                        view.clipToOutline = true
+                        view.outlineProvider = object : ViewOutlineProvider() {
+                            override fun getOutline(view: View, outline: Outline) {
+                                // Creiamo un rettangolo che esce dal basso per non stondare gli angoli inferiori
+                                outline.setRoundRect(
+                                    0, 0,
+                                    view.width, view.height + radiusLarge.toInt(),
+                                    radiusLarge
+                                )
+                            }
                         }
                     }
                 }
-            }
-        )
+            )
+        }
 
 // 5. Hook di rinforzo per i Background dei BottomSheet
 // Molte app usano un MaterialShapeDrawable per gestire gli angoli dei pannelli
-        XposedHelpers.findAndHookMethod(
-            "com.google.android.material.shape.MaterialShapeDrawable",
-            classLoader,
-            "setInterpolation",
-            Float::class.javaPrimitiveType,
-            object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    // Se il raggio è impostato via codice, lo forziamo al nostro radiusLarge
-                    XposedHelpers.callMethod(param.thisObject, "setCornerSize", radiusLarge)
+// 9.1.84: class/method may not exist in the bundled Material version -> fail-soft.
+        runCatching {
+            XposedHelpers.findAndHookMethod(
+                "com.google.android.material.shape.MaterialShapeDrawable",
+                classLoader,
+                "setInterpolation",
+                Float::class.javaPrimitiveType,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        // Se il raggio è impostato via codice, lo forziamo al nostro radiusLarge
+                        XposedHelpers.callMethod(param.thisObject, "setCornerSize", radiusLarge)
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
     private fun applyRoundingIfTarget(view: View) {
