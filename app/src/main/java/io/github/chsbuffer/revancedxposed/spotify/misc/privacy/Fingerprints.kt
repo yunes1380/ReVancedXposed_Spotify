@@ -58,7 +58,7 @@ val formatAndroidShareSheetUrlFingerprint = findMethodDirect {
         }.single {
             !it.usingStrings.contains("") &&
                     it.paramTypes.size == 2 &&
-                    it.paramTypes[1] == "java.lang.String"
+                    it.paramTypes[1].descriptor == "Ljava/lang/String;"
         }
     }
 
