@@ -1,6 +1,7 @@
 package io.github.chsbuffer.revancedxposed.spotify.misc
 
 import io.github.chsbuffer.revancedxposed.AccessFlags
+import io.github.chsbuffer.revancedxposed.Fingerprint
 import io.github.chsbuffer.revancedxposed.Opcode
 import io.github.chsbuffer.revancedxposed.SkipTest
 import io.github.chsbuffer.revancedxposed.findClassDirect
@@ -40,7 +41,7 @@ val contextFromJsonFingerprint = findMethodDirect {
     // 9.1.88: moved to interapp.model.AppProtocol_ContextJsonAdapter (dex shows only 1 ContextJsonAdapter left)
     // Keep 3-tier fallback so one rename can't kill the whole UnlockPremium group.
     runCatching {
-        fingerprint {
+        Fingerprint(this) {
             opcodes(
                 Opcode.INVOKE_STATIC,
                 Opcode.MOVE_RESULT_OBJECT,
@@ -54,10 +55,10 @@ val contextFromJsonFingerprint = findMethodDirect {
                     "voiceassistants.playermodels.ContextJsonAdapter", StringMatchType.EndsWith
                 )
             }
-        }(this)
+        }.run()
     }.getOrElse {
         runCatching {
-            fingerprint {
+            Fingerprint(this) {
                 opcodes(
                     Opcode.INVOKE_STATIC,
                     Opcode.MOVE_RESULT_OBJECT,
@@ -71,10 +72,10 @@ val contextFromJsonFingerprint = findMethodDirect {
                         "interapp.model.AppProtocol_ContextJsonAdapter", StringMatchType.EndsWith
                     )
                 }
-            }(this)
+            }.run()
         }.getOrElse {
             // 9.1.88+: generic fromJson with same opcode shape, any declared class.
-            fingerprint {
+            Fingerprint(this) {
                 opcodes(
                     Opcode.INVOKE_STATIC,
                     Opcode.MOVE_RESULT_OBJECT,
@@ -85,7 +86,7 @@ val contextFromJsonFingerprint = findMethodDirect {
                 methodMatcher {
                     name("fromJson")
                 }
-            }(this)
+            }.run()
         }
     }
 }
