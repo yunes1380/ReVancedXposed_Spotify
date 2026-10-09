@@ -89,17 +89,44 @@ public final class UnlockPremiumPatch {
             } catch (Exception ignored) {
             }
         }
-        Logger.printException(() -> "resolveHomeAdSections: no Section class found, home ad filter disabled");
-        return List.of();
+        // 9.1.88+: host lookup can be blocked before inject; fall back to stub numbers (20, 21).
+        try {
+            return List.of(
+                    com.spotify.casita.v1.resolved.Section.VIDEO_BRAND_AD_FIELD_NUMBER,
+                    com.spotify.casita.v1.resolved.Section.IMAGE_BRAND_AD_FIELD_NUMBER);
+        } catch (Exception e) {
+            Logger.printException(() -> "resolveHomeAdSections: no Section class found, home ad filter disabled");
+            return List.of();
+        }
     }
 
     /**
      * A list of browse sections feature types ids which should be removed. These ids match the ones from the protobuf
      * response which delivers browse sections.
+     * 9.1.88+: resolved reflectively so a stub/field-number drift can't break class loading.
      */
-    private static final List<Integer> REMOVED_BROWSE_SECTIONS = List.of(
-            com.spotify.browsita.v1.resolved.Section.BRAND_ADS_FIELD_NUMBER
-    );
+    private static final List<Integer> REMOVED_BROWSE_SECTIONS = resolveBrowseAdSections();
+
+    private static List<Integer> resolveBrowseAdSections() {
+        String[] candidates = {
+                "com.spotify.browsita.v1.resolved.Section"
+        };
+        for (String cls : candidates) {
+            try {
+                Class<?> c = Class.forName(cls);
+                int brandAds = c.getField("BRAND_ADS_FIELD_NUMBER").getInt(null);
+                return List.of(brandAds);
+            } catch (Exception ignored) {
+            }
+        }
+        // Fallback to stub constant (6) so ad-filter still works if reflection is blocked.
+        try {
+            return List.of(com.spotify.browsita.v1.resolved.Section.BRAND_ADS_FIELD_NUMBER);
+        } catch (Exception e) {
+            Logger.printException(() -> "resolveBrowseAdSections: no Section class found, browse ad filter disabled");
+            return List.of();
+        }
+    }
 
     /**
      * Injection point. Override account attributes.

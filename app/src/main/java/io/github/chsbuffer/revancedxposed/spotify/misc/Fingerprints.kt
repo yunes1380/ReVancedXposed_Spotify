@@ -35,19 +35,58 @@ val buildQueryParametersFingerprint = findMethodDirect {
         }.single()
     }
 }
-val contextFromJsonFingerprint = fingerprint {
-    opcodes(
-        Opcode.INVOKE_STATIC,
-        Opcode.MOVE_RESULT_OBJECT,
-        Opcode.INVOKE_VIRTUAL,
-        Opcode.MOVE_RESULT_OBJECT,
-        Opcode.INVOKE_STATIC
-    )
-    methodMatcher {
-        name("fromJson")
-        declaredClass(
-            "voiceassistants.playermodels.ContextJsonAdapter", StringMatchType.EndsWith
-        )
+val contextFromJsonFingerprint = findMethodDirect {
+    // 9.1.84: voiceassistants.playermodels.ContextJsonAdapter
+    // 9.1.88: moved to interapp.model.AppProtocol_ContextJsonAdapter (dex shows only 1 ContextJsonAdapter left)
+    // Keep 3-tier fallback so one rename can't kill the whole UnlockPremium group.
+    runCatching {
+        fingerprint {
+            opcodes(
+                Opcode.INVOKE_STATIC,
+                Opcode.MOVE_RESULT_OBJECT,
+                Opcode.INVOKE_VIRTUAL,
+                Opcode.MOVE_RESULT_OBJECT,
+                Opcode.INVOKE_STATIC
+            )
+            methodMatcher {
+                name("fromJson")
+                declaredClass(
+                    "voiceassistants.playermodels.ContextJsonAdapter", StringMatchType.EndsWith
+                )
+            }
+        }(this)
+    }.getOrElse {
+        runCatching {
+            fingerprint {
+                opcodes(
+                    Opcode.INVOKE_STATIC,
+                    Opcode.MOVE_RESULT_OBJECT,
+                    Opcode.INVOKE_VIRTUAL,
+                    Opcode.MOVE_RESULT_OBJECT,
+                    Opcode.INVOKE_STATIC
+                )
+                methodMatcher {
+                    name("fromJson")
+                    declaredClass(
+                        "interapp.model.AppProtocol_ContextJsonAdapter", StringMatchType.EndsWith
+                    )
+                }
+            }(this)
+        }.getOrElse {
+            // 9.1.88+: generic fromJson with same opcode shape, any declared class.
+            fingerprint {
+                opcodes(
+                    Opcode.INVOKE_STATIC,
+                    Opcode.MOVE_RESULT_OBJECT,
+                    Opcode.INVOKE_VIRTUAL,
+                    Opcode.MOVE_RESULT_OBJECT,
+                    Opcode.INVOKE_STATIC
+                )
+                methodMatcher {
+                    name("fromJson")
+                }
+            }(this)
+        }
     }
 }
 
